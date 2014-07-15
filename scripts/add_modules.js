@@ -9,5 +9,5 @@ function addModule(mFileName)
     var sTag = document.createElement("script"); //Create a SCRIPT tag
     sTag.setAttribute("src", mFileName); //Set the SCRIPT src=mFileName
     sTag.setAttribute("type", "text/javascript"); //set the SCRIPT type="text/javascript"
-    hHead.appendChild(sTag); //Add it to your header section (parsed and run immediately)
+    hHead.appendChild(sTag); //add it to your header section (parsed and run immediately)
 }

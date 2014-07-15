@@ -15,6 +15,9 @@
 // Sets the zoom
 viewport.zoom = 1.5;
 
+// The star!
+world.addCharacter(character);
+
 // Some triangles
 world.addObject(makePoly([[-250,1], [-250,50], [-100,1]], color(0,200,100)));
 world.addObject(makePoly([[-400,50], [-350,50], [-400,200]], color(0,200,100)));
@@ -51,7 +54,8 @@ var makeTimer = function() {
 }
 var timer = makeTimer();
 
-// Updates the viewport
+// Creates and updates the viewport
+viewport.init();
 var updateViewport = function() {
 	var com = world.character.com();
 	viewport.centerX = com[0];
