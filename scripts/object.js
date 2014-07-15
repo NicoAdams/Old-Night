@@ -24,7 +24,7 @@ var makePoly = function(points, col) {
 		},
 		rotate: function(angle, about) {
 			for(var i=0; i<points.length; i++) {
-				points[i] = rotateAbout(points[i], angle, about);
+				points[i] = geom.rotateAbout(points[i], angle, about);
 			}
 		},
 		draw: function() {
@@ -55,6 +55,6 @@ var makeRect = function(x, y, w, h, theta, col) {
 
 // Draws a vector
 var vdraw = function(center, vector, color) {
-	var r = makeRect(center[0], center[1], vlen(vector), 3, vangle(vector), color);
+	var r = makeRect(center[0], center[1], geom.vlen(vector), 3, geom.vangle(vector), color);
 	r.draw();
 }

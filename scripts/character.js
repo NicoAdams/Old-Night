@@ -1,25 +1,46 @@
-// Stores the character's data
-var characterWidth = 10, characterHeight = 20;
+
+// The character definition
+var characterDef = {
+	startX: -425,
+	startY: 200,
+	width: 10,
+	height: 20,
+	sideAccel: world.gravity,
+	sideDecel: world.gravity / 2,
+	ySpeedLimit: 20,
+	sideSpeedLimit: 7,
+	criticalAngle: Math.PI/4,
+	jumpSpeed: 7,
+	softener: .7 * world.gravity,
+	softenTimerMax: 15,
+}
 
 var character = {
-	obj: makeRect(-425,
-				  200,
-				  characterWidth,
-				  characterHeight,
-				  0,
-				  color(255,255,255)),
-	w: characterWidth,
-	h: characterHeight,
+	obj: {},
+	def: {},
+	w: 0,
+	h: 0,
 	vel: [0,0],
 	angle: 0,
 	keystack: [],
 	onGround: true, 
 	softenTimer: 0, // For softening gravity during jump
-	com: function() {return this.obj.com()},
-	x: function() {return this.obj.com()[0]},
-	y: function() {return this.obj.com()[1]},
-	move: function(v) {return this.obj.move(v)},
-	init: function() {
+	init: function(def) {
+		
+		console.log(def);
+		
+		// Stores the vals for various functions to use
+		this.def = def;
+		
+		// Creates the character's physics object
+		this.obj = makeRect(def.startX,
+							def.startY,
+							def.width,
+							def.height,
+							0,
+							color(255,255,255));
+		
+		// Sets up key input
 		ch = this;
 		document.onkeydown = function(keyinfo) {
 			ch.keystack = removeObj(ch.keystack, "keyCode", keyinfo.keyCode);
@@ -29,24 +50,25 @@ var character = {
 			ch.keystack = removeObj(ch.keystack, "keyCode", keyinfo.keyCode);
 		}
 	},
+	com: function() {return this.obj.com()},
+	x: function() {return this.obj.com()[0]},
+	y: function() {return this.obj.com()[1]},
+	move: function(v) {return this.obj.move(v)},
 	rotate: function(angle, about) {
 		// Rotates about center of mass
 		if(!about) {about = this.com();}
 		this.angle += angle;
 		this.obj.rotate(angle, about);
 	},
-	unitHorz: function() {return rotate([1,0], this.angle);},
-	unitVert: function() {return rotate([0,1], this.angle);},
+	unitHorz: function() {return geom.rotate([1,0], this.angle);},
+	unitVert: function() {return geom.rotate([0,1], this.angle);},
 	applyVel: function(rt) {
 		// Applies velocity over ratio time rt
-		this.move(mul(this.vel, rt))
+		this.move(geom.mul(this.vel, rt))
 	},
 	limitSpeeds: function() {
-		var sideSpeedLimit = 7;
-		var ySpeedLimit = 20;
-		
-		this.vel = vlimit(this.vel, this.unitHorz(), sideSpeedLimit);
-		this.vel = vlimit(this.vel, [0,1], ySpeedLimit);
+		this.vel = geom.vlimit(this.vel, this.unitHorz(), this.def.sideSpeedLimit);
+		this.vel = geom.vlimit(this.vel, [0,1], this.def.ySpeedLimit);
 	},
 	restoreRotation: function() {
 		this.rotate(-this.angle);
@@ -56,14 +78,13 @@ var character = {
 		// Removes perp vel, repositions and grounds character
 		
 		this.onGround = false;
-//		this.restoreRotation();
 		var groundingVectors = [];
 		for (var i=0; i<pVectors.length; i++) {
 			var pVector = pVectors[i];
 			
 			// Repositions and removes perp vel
 			this.move(pVector);
-			this.vel = vproject(this.vel, rotate(pVector, Math.PI/2));
+			this.vel = geom.vproject(this.vel, geom.rotate(pVector, Math.PI/2));
 			
 			// Stores grounding vectors for processing last
 			if(this.detectGround(pVector)) {
@@ -76,17 +97,17 @@ var character = {
 			this.onGround = true;
 			
 			var pVector = groundingVectors[i]
-			var currAngle = vangle(pVector);
+			var currAngle = geom.vangle(pVector);
 			
 			// Determines the point about which to rotate
-			var rotPt = projectMinMax(this.obj.points, pVector)[0];
+			var rotPt = geom.projectMinMax(this.obj.points, pVector)[0];
 			var groundingAngle = currAngle - Math.PI/2;
 			this.rotate(groundingAngle-this.angle, rotPt);
 			
 			// // Checks to see if now intersecting with more than projecting surface
 			// var newPVectors = world.detectCollision(this.obj);
 			// for(var j=0; j<newPVectors; j++) {
-			// 	if(!vparallel(newPVectors[j], pVector)) {
+			// 	if(!geom.vparallel(newPVectors[j], pVector)) {
 			// 		// It's probably not same surface
 			// 		// Though this could be susceptible to bugs...
 			// 		this.rotate(-groundingAngle, rotPt);
@@ -96,19 +117,14 @@ var character = {
 		}
 		
 		// If not on a surface, sets upright
-		if(!this.onGround) {this.restoreRotation();}
+		if(!this.onGround) {this.restoreRotation()}
 	},
 	detectGround: function(pVector) {
-		// Returns true if pVector is a grounding vector
-		
-		// Critical angle
-		var criticalAngle = Math.PI/4;
-		
-		// Detects if within critical angle
-		var currAngle = vangle(pVector);
-		if(vlen(pVector) &&
-			(currAngle >= criticalAngle) &&
-			(currAngle <= Math.PI - criticalAngle)) {
+		// Returns true if pVector is a grounding vector		
+		var currAngle = geom.vangle(pVector);
+		if((geom.vlen(pVector) > 0) &&
+			(currAngle >= this.def.criticalAngle) &&
+			(currAngle <= Math.PI - this.def.criticalAngle)) {
 			
 			return true;
 		}
@@ -117,24 +133,16 @@ var character = {
 	jump: function(rt) {
 		// Handles jump aspects, including takeoff & softening
 		
-		// Useful values
-		var jumpSpeed = 7,
-			softener = .7 * world.gravity * rt,
-			softenTimerMax = 15;
-		
 		if(this.onGround) {
-			var jumpVel = mul(this.unitVert(), jumpSpeed);
-			this.vel = add(this.vel, jumpVel);
-			this.softenTimer = softenTimerMax;
+			var jumpVel = geom.mul(this.unitVert(), this.def.jumpSpeed);
+			this.vel = geom.add(this.vel, jumpVel);
+			this.softenTimer = this.def.softenTimerMax;
 		
 		} else {
 			if(this.softenTimer > 0) {
 				this.softenTimer -= rt;
-				var softenVel = mul(this.unitVert(), softener);
-				
-				vdraw(this.com(), mul(softenVel, 20), color(0,255,0));
-				
-				this.vel = add(this.vel, softenVel);
+				var softenVel = geom.mul(this.unitVert(), this.def.softener * rt);
+				this.vel = geom.add(this.vel, softenVel);
 			} else {
 				this.softenTimer = 0;
 			}
@@ -144,45 +152,38 @@ var character = {
 		// Handles side-to-side motion
 		// direction: Left = -1, Right = 1, Decel = 0
 		
-		// Useful constants
-		var sideAccel = world.gravity,
-			sideDecel = world.gravity / 2;
-		
 		// Filter input
 		if(direction != 1 && direction != 0 && direction != -1) {
 			direction = 0;
 		}
 		
-		var currSideSpeed = dot(this.vel, this.unitHorz());	
+		var currSideSpeed = geom.dot(this.vel, this.unitHorz());	
 		
 		// Accelerates
 		if(direction) {
 			// Calculates and limits the current side speed
-			var newSideSpeed = currSideSpeed + sideAccel * direction * rt;
+			var newSideSpeed = currSideSpeed + this.def.sideAccel * direction * rt;
 			
 			// Removes current horz velocity and adds new velocity
-			this.vel = vproject(this.vel, this.unitVert());
-			this.vel = add(this.vel, mul(this.unitHorz(), newSideSpeed));
+			this.vel = geom.vproject(this.vel, this.unitVert());
+			this.vel = geom.add(this.vel, geom.mul(this.unitHorz(), newSideSpeed));
 			
 		// Decelerates
 		} else if(this.onGround) {
 			// Calculates decel speed
-			var decelSpeed = -sign(currSideSpeed) * sideDecel * rt;
+			var decelSpeed = -sign(currSideSpeed) * this.def.sideDecel * rt;
 			
 			// Applies the decel, stopping completely if needed
 			
 			if(Math.abs(currSideSpeed) < Math.abs(decelSpeed)) {
-				this.vel = vproject(this.vel, this.unitVert());
+				this.vel = geom.vproject(this.vel, this.unitVert());
 			} else {
-				this.vel = add(this.vel, mul(this.unitHorz(), decelSpeed));
+				this.vel = geom.add(this.vel, geom.mul(this.unitHorz(), decelSpeed));
 			}
 		}
 	},
-	update: function(dt) {
+	update: function(rt) {
 		// Updates over dt time ticks
-		
-		var st = 30; // Standard time (what I originally chose as a time tick)
-		var rt = dt/st; // Ratio time
 		
 		// Key input variables
 		var direction = 0;
@@ -245,7 +246,7 @@ var character = {
 		this.moveSideways(rt, direction);
 		
 		// Adds gravity
-		this.vel = add(this.vel, mul([0,1], -1 * world.gravity * rt));
+		this.vel = geom.add(this.vel, geom.mul([0,1], -1 * world.gravity * rt));
 		
 		// Speed limits
 		this.limitSpeeds();
@@ -259,11 +260,8 @@ var character = {
 	},
 	draw: function() {
 		this.obj.draw();
-		vdraw(this.com(), mul(this.vel, 10), color(255,0,0));
+		vdraw(this.com(), geom.mul(this.vel, 10), color(255,0,0));
 	}
 }
 
-character.init();
-console.log(character);
-world.addCharacter(character);
-
+character.init(characterDef);
