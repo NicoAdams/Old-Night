@@ -132,8 +132,6 @@ var character = {
 				this.softenTimer -= rt;
 				var softenVel = mul(this.unitVert(), softener);
 				
-				vdraw(this.com(), mul(softenVel, 20), color(0,255,0));
-				
 				this.vel = add(this.vel, softenVel);
 			} else {
 				this.softenTimer = 0;
@@ -264,6 +262,5 @@ var character = {
 }
 
 character.init();
-console.log(character);
 world.addCharacter(character);
 
